@@ -39,7 +39,6 @@ class Image_Dataset(torch.utils.data.Dataset):
                 return self.transforms(self.data[idx].float()), self.labels[idx]
 
 
-
 class ST_Classifier(nn.Module):
         def __init__(self, num_classes, fine_tune):
                 super(ST_Classifier, self).__init__()
@@ -66,7 +65,6 @@ class ST_Classifier(nn.Module):
 
 
 
-
 def get_dataloaders(batch_size, shuffle):
         train_data = torch.load("dataset.pt")
         train_labels = torch.load("labels.pt")
@@ -82,6 +80,7 @@ def get_dataloaders(batch_size, shuffle):
         val_dataloader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=shuffle)
 
         return train_dataloader, val_dataloader
+
 
 
 def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, epochs, margin, reduction, writer):
@@ -106,8 +105,6 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                         optimizer.zero_grad()
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
-                        writer.add_scalar("Loss/train", loss, epoch)
-                        #'''
                         total += len(outputs)
                         for j in range(len(running_loss_per_class)):
                                 class_outputs = outputs[:, j]
@@ -116,23 +113,24 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                                 running_loss_per_class[j] += class_loss
                                 for k in range(len(class_outputs)):
                                         if ((class_outputs[k] - class_labels[k])**2) <= margin: correct_per_class[j] += 1
-                        #'''
                         loss.backward()
                         optimizer.step()
                         running_loss += loss.item()
-                        if i % 100 == 0:
-                                print("[" + str(i) + "] loss: " + str(running_loss / 100))
-                                running_loss = 0.0
-                #'''
+                print("[" + str(i) + "] loss: " + str(running_loss / total))
+                running_loss = 0.0
+
+
                 (test_loss, test_acc) = test_model(model, val_dataloader, margin, False, reduction)
                 for j in range(len(running_loss_per_class)):
-                        train_loss_per_class[j, epoch] = running_loss_per_class[j]
-                        test_loss_per_class[j, epoch] = test_loss[j]
-                        test_acc_per_class[j, epoch] = test_acc[j]
-                        train_acc_per_class[j, epoch] = correct_per_class[j]/total
-
-
-
+                        #train_loss_per_class[j, epoch] = running_loss_per_class[j]
+                        writer.add_scalar("Loss/train/" + classes[j], running_loss_per_class[j], epoch)
+                        #test_loss_per_class[j, epoch] = test_loss[j]
+                        writer.add_scalar("Loss/test/" + classes[j], test_loss[j], epoch)
+                        #test_acc_per_class[j, epoch] = test_acc[j]
+                        writer.add_scalar("Accuracy/test/" + classes[j], test_acc[j], epoch)
+                        #train_acc_per_class[j, epoch] = correct_per_class[j]/total
+                        writer.add_scalar("Accuray/train/" + classes[j], correct_per_class[j]/total, epoch)
+        '''
         for j in range(13):
                 plt.figure()
                 plt.plot(train_loss_per_class[j], "-b", label='train')
@@ -154,7 +152,7 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                 plt.savefig("acc_curves/" + classes[j] + "_train_test")
                 plt.close()
 
-        #'''
+        '''
         print('finished training')
         return model, writer
 
@@ -172,6 +170,8 @@ def test_model(model, val_dataloader, margin, to_print, reduction):
                         inputs, labels = data[0].to(device).float(), data[1].to(device).float()
                         outputs = model(inputs)
                         total += outputs.size(0)
+                        print("len(outputs): " + str(len(outputs)))
+                        print("len(outputs[0]): " + str(len(outputs[0])))
                         for j in range(len(outputs)):
                                 if ((outputs[j] - labels[j])**2).sum()/13 <= margin: correct += 1
                                 for k in range(len(outputs[j])):
@@ -214,8 +214,22 @@ if __name__ == '__main__':
         fine_tune = args.fine_tune
         reduction = args.reduction
 
+
+        fine_tune = False
+
+        print("\n\n\n")
+        print(batch_size)
+        print(shuffle)
+        print(epochs)
+        print(lr)
+        print(momentum)
+        print(margin)
+        print(fine_tune)
+        print(reduction)
+
+
         #create writer
-        writer = SummaryWriter()
+        writer = SummaryWriter(comment='_' + str(batch_size) + '_' + str(lr) + '_' + str(fine_tune))
 
         #create model
         model = ST_Classifier(len(classes), fine_tune)
