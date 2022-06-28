@@ -215,8 +215,6 @@ if __name__ == '__main__':
         reduction = args.reduction
 
 
-        fine_tune = False
-
         print("\n\n\n")
         print(batch_size)
         print(shuffle)
