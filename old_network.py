@@ -23,7 +23,6 @@ from torch.utils.tensorboard import SummaryWriter
 classes = ['Malignant', 'CAF', 'Endothelial', 'B Cell', 'cDC', 'pDC', 'Macrophage', 'Mast', 'Neutrophil', 'NK', 'Plasma',\
          'T CD4', 'T CD8']
 
-
 class Image_Dataset(torch.utils.data.Dataset):
 
         def __init__(self, dataset, labels, transforms):
@@ -103,6 +102,9 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                         optimizer.zero_grad()
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
+                        print("new")
+                        print(loss)
+                        print(torch.sum((outputs - labels)**2))   #/(batch_size*len(classes)))
                         total += len(outputs)
                         for j in range(len(classes)):
                                 class_outputs = outputs[:, j]
@@ -153,7 +155,6 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
         return model, writer
 
 
-
 def test_model(model, val_dataloader, margin, to_print, reduction):
         model.eval()
         correct = 0
@@ -180,7 +181,8 @@ def test_model(model, val_dataloader, margin, to_print, reduction):
                         print("Accuracy on " + classes[i] + ": " + str(class_correct[i]/total))
 
         return class_loss, class_correct/total
-      
+
+
 def get_args():
         parser = argparse.ArgumentParser()
         parser.add_argument('--batch_size', type=int)
@@ -218,7 +220,6 @@ if __name__ == '__main__':
         print(margin)
         print(fine_tune)
         print(reduction)
-
 
 
         #create writer
