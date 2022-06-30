@@ -87,104 +87,84 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
 
         model.train()
 
-        train_loss_per_class = np.zeros((13, epochs))
-        test_loss_per_class = np.zeros((13, epochs))
-        train_acc_per_class = np.zeros((13, epochs))
-        test_acc_per_class = np.zeros((13, epochs))
         for epoch in range(epochs):
 
                 print("\nEpoch " + str(epoch) + "/" + str(epochs - 1))
                 print('----------')
 
                 total = 0.0
-                correct_per_class = np.zeros(13)
+                correct = 0.0
                 running_loss = 0.0
-                running_loss_per_class = np.zeros((13), dtype=float)
+
+                class_correct = np.zeros(len(classes), dtype=float)
+                class_loss = np.zeros(len(classes), dtype=float)
+
                 for i, data in enumerate(train_dataloader, 0):
                         inputs, labels = data[0].to(device).float(), data[1].to(device).float()
                         optimizer.zero_grad()
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
                         total += len(outputs)
-                        for j in range(len(running_loss_per_class)):
-                                class_outputs = outputs[:, j]
-                                class_labels = labels[:, j]
-                                class_loss = criterion(class_outputs, class_labels)
-                                running_loss_per_class[j] += class_loss
-                                for k in range(len(class_outputs)):
-                                        if ((class_outputs[k] - class_labels[k])**2) <= margin: correct_per_class[j] += 1
+
+                        for j in range(len(outputs)):
+                                if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
+                                for k in range(len(outputs[j])):
+                                        if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
+                        for j in range(len(classes)):
+                                class_loss[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
+
                         loss.backward()
                         optimizer.step()
                         running_loss += loss.item()
+
                 print("[" + str(i) + "] loss: " + str(running_loss / total))
                 running_loss = 0.0
+                  
 
-
-                (test_loss, test_acc) = test_model(model, val_dataloader, margin, False, reduction)
-                for j in range(len(running_loss_per_class)):
-                        #train_loss_per_class[j, epoch] = running_loss_per_class[j]
-                        writer.add_scalar("Loss/train/" + classes[j], running_loss_per_class[j], epoch)
-                        #test_loss_per_class[j, epoch] = test_loss[j]
+                (test_loss, test_acc, test_correct) = test_model(model, val_dataloader, margin, False, reduction)
+                writer.add_scalar("Accuracy/train", correct/total, epoch)
+                writer.add_scalar("Accuracy/test", test_correct, epoch)
+                for j in range(len(class_loss)):
+                        writer.add_scalar("Loss/train/" + classes[j], class_loss[j]/total, epoch)
                         writer.add_scalar("Loss/test/" + classes[j], test_loss[j], epoch)
-                        #test_acc_per_class[j, epoch] = test_acc[j]
                         writer.add_scalar("Accuracy/test/" + classes[j], test_acc[j], epoch)
-                        #train_acc_per_class[j, epoch] = correct_per_class[j]/total
-                        writer.add_scalar("Accuray/train/" + classes[j], correct_per_class[j]/total, epoch)
-        '''
-        for j in range(13):
-                plt.figure()
-                plt.plot(train_loss_per_class[j], "-b", label='train')
-                plt.plot(test_loss_per_class[j], "-r", label='test')
-                plt.xlabel("epochs")
-                plt.ylabel("loss")
-                plt.legend(loc="upper right")
-                plt.title(classes[j] + " Loss")
-                plt.savefig("loss_curves/" + classes[j] + "_train_test")
-                plt.close()
+                        writer.add_scalar("Accuray/train/" + classes[j], class_correct[j]/total, epoch)
 
-                plt.figure()
-                plt.plot(train_acc_per_class[j], "-b", label='train')
-                plt.plot(test_acc_per_class[j], "-r", label='test')
-                plt.xlabel("epochs")
-                plt.ylabel("accuracy")
-                plt.legend(loc="lower right")
-                plt.title(classes[j] + " Accuracy")
-                plt.savefig("acc_curves/" + classes[j] + "_train_test")
-                plt.close()
-
-        '''
         print('finished training')
         return model, writer
-
+                  
 
 def test_model(model, val_dataloader, margin, to_print, reduction):
+
         model.eval()
+
         correct = 0
-        class_correct = np.zeros(13)
         total = 0
+
+        class_correct = np.zeros(len(classes), dtype=float)
+        class_loss = np.zeros((len(classes)), dtype=float)
+
         criterion = nn.MSELoss(reduction=reduction)
-        class_loss = np.zeros((13), dtype=float)
 
         with torch.no_grad():
                 for i, data in enumerate(val_dataloader, 0):
                         inputs, labels = data[0].to(device).float(), data[1].to(device).float()
                         outputs = model(inputs)
-                        total += outputs.size(0)
-                        print("len(outputs): " + str(len(outputs)))
-                        print("len(outputs[0]): " + str(len(outputs[0])))
+                        total += len(outputs)
+
                         for j in range(len(outputs)):
-                                if ((outputs[j] - labels[j])**2).sum()/13 <= margin: correct += 1
+                                if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
                                 for k in range(len(outputs[j])):
                                         if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
-                        for j in range(len(class_loss)):
-                                loss = criterion(outputs[j], labels[j])
-                                class_loss[j] += loss
+                        for j in range(len(classes)):
+                                class_loss[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
+
         if to_print:
                 print("Accuracy on validation set: " + str(correct/total))
                 for i in range(len(classes)):
                         print("Accuracy on " + classes[i] + ": " + str(class_correct[i]/total))
 
-        return class_loss, class_correct/total
+        return class_loss/total, class_correct/total, correct/total
 
 
 def get_args():
