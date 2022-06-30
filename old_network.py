@@ -102,15 +102,14 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                         optimizer.zero_grad()
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
-                        print("new")
-                        print(loss)
-                        print(torch.sum((outputs - labels)**2))   #/(batch_size*len(classes)))
+                        #print("new")
+                        #print(loss)
+                        #print(torch.sum((outputs - labels)**2))   #/(batch_size*len(classes)))
                         total += len(outputs)
                         for j in range(len(classes)):
                                 class_outputs = outputs[:, j]
                                 class_labels = labels[:, j]
-                                class_loss = criterion(class_outputs, class_labels)
-                                running_loss_per_class[j] += class_loss
+                                running_loss_per_class[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
                                 for k in range(len(class_outputs)):
                                         if ((class_outputs[k] - class_labels[k])**2) <= margin: correct_per_class[j] += 1
                         loss.backward()
@@ -123,7 +122,9 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                 (test_loss, test_acc) = test_model(model, val_dataloader, margin, False, reduction)
                 for j in range(len(running_loss_per_class)):
                         #train_loss_per_class[j, epoch] = running_loss_per_class[j]
-                        writer.add_scalar("Loss/train/" + classes[j], running_loss_per_class[j], epoch)
+
+                        ''' added try to adjust class loss????? '''
+                        writer.add_scalar("Loss/train/" + classes[j], running_loss_per_class[j]/total, epoch)
                         #test_loss_per_class[j, epoch] = test_loss[j]
                         writer.add_scalar("Loss/test/" + classes[j], test_loss[j], epoch)
                         #test_acc_per_class[j, epoch] = test_acc[j]
@@ -173,14 +174,13 @@ def test_model(model, val_dataloader, margin, to_print, reduction):
                                 for k in range(len(outputs[j])):
                                         if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
                         for j in range(len(classes)):
-                                loss = criterion(outputs[:, j], labels[:, j])
-                                class_loss[j] += loss
+                                class_loss[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
         if to_print:
                 print("Accuracy on validation set: " + str(correct/total))
                 for i in range(len(classes)):
                         print("Accuracy on " + classes[i] + ": " + str(class_correct[i]/total))
 
-        return class_loss, class_correct/total
+        return class_loss/total, class_correct/total
 
 
 def get_args():
