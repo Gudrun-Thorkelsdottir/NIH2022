@@ -16,12 +16,14 @@ from torch.utils.tensorboard import SummaryWriter
 
 
 #classes = ['Malignant', 'CAF', 'Endothelial', 'B Cell', 'cDC', 'pDC', 'Macrophage', 'Mast', 'Neutrophil', 'NK', 'Plasma',\
-#       'T CD4', 'T CD8', 'Unidentifiable', 'B cell exhausted', 'B cell naive', 'B cell non-switched memory', \
+#        'T CD4', 'T CD8', 'Unidentifiable', 'B cell exhausted', 'B cell naive', 'B cell non-switched memory', \
 #       'B cell switched memory', 'cDC1 CLEC9A', 'cDC2 CD1C', 'cDC3 LAMP3', 'Macrophage M1', 'Macrophage M2', \
 #       'Macrophage other', 'T CD4 naive', 'Tfh', 'Th1', 'Th17', 'Th2', 'Treg', 'T CD8 central memory', 'T CD8 effector',\
-#       'T CD8 effector memory', 'T CD8 exhausted', 'T CD8 naive']
+#        'T CD8 effector memory', 'T CD8 exhausted', 'T CD8 naive']
 classes = ['Malignant', 'CAF', 'Endothelial', 'B Cell', 'cDC', 'pDC', 'Macrophage', 'Mast', 'Neutrophil', 'NK', 'Plasma',\
          'T CD4', 'T CD8']
+
+
 
 class Image_Dataset(torch.utils.data.Dataset):
 
@@ -62,6 +64,7 @@ class ST_Classifier(nn.Module):
                 return x
 
 
+
 def get_dataloaders(batch_size, shuffle):
         train_data = torch.load("dataset.pt")
         train_labels = torch.load("labels.pt")
@@ -84,32 +87,30 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
 
         model.train()
 
-        train_loss_per_class = np.zeros((len(classes), epochs))
-        test_loss_per_class = np.zeros((len(classes), epochs))
-        train_acc_per_class = np.zeros((len(classes), epochs))
-        test_acc_per_class = np.zeros((len(classes), epochs))
+        train_loss_per_class = np.zeros((13, epochs))
+        test_loss_per_class = np.zeros((13, epochs))
+        train_acc_per_class = np.zeros((13, epochs))
+        test_acc_per_class = np.zeros((13, epochs))
         for epoch in range(epochs):
 
                 print("\nEpoch " + str(epoch) + "/" + str(epochs - 1))
                 print('----------')
 
                 total = 0.0
-                correct_per_class = np.zeros(len(classes))
+                correct_per_class = np.zeros(13)
                 running_loss = 0.0
-                running_loss_per_class = np.zeros((len(classes)), dtype=float)
+                running_loss_per_class = np.zeros((13), dtype=float)
                 for i, data in enumerate(train_dataloader, 0):
                         inputs, labels = data[0].to(device).float(), data[1].to(device).float()
                         optimizer.zero_grad()
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
-                        #print("new")
-                        #print(loss)
-                        #print(torch.sum((outputs - labels)**2))   #/(batch_size*len(classes)))
                         total += len(outputs)
-                        for j in range(len(classes)):
+                        for j in range(len(running_loss_per_class)):
                                 class_outputs = outputs[:, j]
                                 class_labels = labels[:, j]
-                                running_loss_per_class[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
+                                class_loss = criterion(class_outputs, class_labels)
+                                running_loss_per_class[j] += class_loss
                                 for k in range(len(class_outputs)):
                                         if ((class_outputs[k] - class_labels[k])**2) <= margin: correct_per_class[j] += 1
                         loss.backward()
@@ -122,9 +123,7 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                 (test_loss, test_acc) = test_model(model, val_dataloader, margin, False, reduction)
                 for j in range(len(running_loss_per_class)):
                         #train_loss_per_class[j, epoch] = running_loss_per_class[j]
-
-                        ''' added try to adjust class loss????? '''
-                        writer.add_scalar("Loss/train/" + classes[j], running_loss_per_class[j]/total, epoch)
+                        writer.add_scalar("Loss/train/" + classes[j], running_loss_per_class[j], epoch)
                         #test_loss_per_class[j, epoch] = test_loss[j]
                         writer.add_scalar("Loss/test/" + classes[j], test_loss[j], epoch)
                         #test_acc_per_class[j, epoch] = test_acc[j]
@@ -132,7 +131,7 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                         #train_acc_per_class[j, epoch] = correct_per_class[j]/total
                         writer.add_scalar("Accuray/train/" + classes[j], correct_per_class[j]/total, epoch)
         '''
-        for j in range(len(classes)):
+        for j in range(13):
                 plt.figure()
                 plt.plot(train_loss_per_class[j], "-b", label='train')
                 plt.plot(test_loss_per_class[j], "-r", label='test')
@@ -159,28 +158,31 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
 def test_model(model, val_dataloader, margin, to_print, reduction):
         model.eval()
         correct = 0
-        class_correct = np.zeros(len(classes))
+        class_correct = np.zeros(13)
         total = 0
         criterion = nn.MSELoss(reduction=reduction)
-        class_loss = np.zeros((len(classes)), dtype=float)
+        class_loss = np.zeros((13), dtype=float)
 
         with torch.no_grad():
                 for i, data in enumerate(val_dataloader, 0):
                         inputs, labels = data[0].to(device).float(), data[1].to(device).float()
                         outputs = model(inputs)
                         total += outputs.size(0)
+                        print("len(outputs): " + str(len(outputs)))
+                        print("len(outputs[0]): " + str(len(outputs[0])))
                         for j in range(len(outputs)):
-                                if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
+                                if ((outputs[j] - labels[j])**2).sum()/13 <= margin: correct += 1
                                 for k in range(len(outputs[j])):
                                         if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
-                        for j in range(len(classes)):
-                                class_loss[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
+                        for j in range(len(class_loss)):
+                                loss = criterion(outputs[j], labels[j])
+                                class_loss[j] += loss
         if to_print:
                 print("Accuracy on validation set: " + str(correct/total))
                 for i in range(len(classes)):
                         print("Accuracy on " + classes[i] + ": " + str(class_correct[i]/total))
 
-        return class_loss/total, class_correct/total
+        return class_loss, class_correct/total
 
 
 def get_args():
