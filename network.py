@@ -12,14 +12,16 @@ import copy
 import os
 import argparse
 from torch.utils.tensorboard import SummaryWriter
+from sklearn.metrics import r2_score
+from scipy import stats
 
 
 
 #classes = ['Malignant', 'CAF', 'Endothelial', 'B Cell', 'cDC', 'pDC', 'Macrophage', 'Mast', 'Neutrophil', 'NK', 'Plasma',\
-#        'T CD4', 'T CD8', 'Unidentifiable', 'B cell exhausted', 'B cell naive', 'B cell non-switched memory', \
+#       'T CD4', 'T CD8', 'Unidentifiable', 'B cell exhausted', 'B cell naive', 'B cell non-switched memory', \
 #       'B cell switched memory', 'cDC1 CLEC9A', 'cDC2 CD1C', 'cDC3 LAMP3', 'Macrophage M1', 'Macrophage M2', \
 #       'Macrophage other', 'T CD4 naive', 'Tfh', 'Th1', 'Th17', 'Th2', 'Treg', 'T CD8 central memory', 'T CD8 effector',\
-#        'T CD8 effector memory', 'T CD8 exhausted', 'T CD8 naive']
+#       'T CD8 effector memory', 'T CD8 exhausted', 'T CD8 naive']
 classes = ['Malignant', 'CAF', 'Endothelial', 'B Cell', 'cDC', 'pDC', 'Macrophage', 'Mast', 'Neutrophil', 'NK', 'Plasma',\
          'T CD4', 'T CD8']
 
@@ -40,13 +42,10 @@ class Image_Dataset(torch.utils.data.Dataset):
 
 
 class ST_Classifier(nn.Module):
-        def __init__(self, num_classes, fine_tune):
+        def __init__(self, num_classes):
                 super(ST_Classifier, self).__init__()
                 self.encoder = models.resnet18(pretrained=True)
                 self.encoder.fc = nn.Identity()
-                if not fine_tune:
-                        for param in self.encoder.parameters():
-                                param.requires_grad = False
                 self.relu = nn.ReLU()
                 self.fc1 = nn.Linear(512, 128)
                 self.fc2 = nn.Linear(128,64)
@@ -62,7 +61,6 @@ class ST_Classifier(nn.Module):
                 x = self.out(x)
                 x = self.softmax(x)
                 return x
-
 
 
 def get_dataloaders(batch_size, shuffle):
@@ -83,7 +81,7 @@ def get_dataloaders(batch_size, shuffle):
 
 
 
-def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, epochs, margin, reduction, writer):
+def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, epochs, margin, writer):
 
         model.train()
 
@@ -95,6 +93,7 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                 total = 0.0
                 correct = 0.0
                 running_loss = 0.0
+                num_batches = 0
 
                 class_correct = np.zeros(len(classes), dtype=float)
                 class_loss = np.zeros(len(classes), dtype=float)
@@ -106,10 +105,23 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                         loss = criterion(outputs, labels)
                         total += len(outputs)
 
-                        for j in range(len(outputs)):
-                                if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
-                                for k in range(len(outputs[j])):
-                                        if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
+                        #R2 SCORE
+                        #class_correct += r2_score(outputs.tolist(), labels.tolist(), multioutput='raw_values')
+
+                        #SPEARMANS
+                        #for j in range(len(classes)):
+                        #       rho, p = stats.spearmanr(outputs[:, j].tolist(), labels[:, j].tolist())
+                        #       class_correct[j] += rho
+
+                        #PEARSONS
+                        for j in range(len(classes)):
+                                rho, p = stats.pearsonr(outputs[:, j].tolist(), labels[:, j].tolist())
+                                class_correct[j] += rho
+
+                        #for j in range(len(outputs)):
+                        #       if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
+                        #       for k in range(len(outputs[j])):
+                        #               if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
                         for j in range(len(classes)):
                                 class_loss[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
 
@@ -117,24 +129,30 @@ def train_model(model, train_dataloader, val_dataloader, criterion, optimizer, e
                         optimizer.step()
                         running_loss += loss.item()
 
+                        num_batches = i
+
                 print("[" + str(i) + "] loss: " + str(running_loss / total))
                 running_loss = 0.0
-                  
 
-                (test_loss, test_acc, test_correct) = test_model(model, val_dataloader, margin, False, reduction)
-                writer.add_scalar("Accuracy/train", correct/total, epoch)
-                writer.add_scalar("Accuracy/test", test_correct, epoch)
+
+                #(test_loss, test_acc, test_correct) = test_model(model, val_dataloader, margin, False)
+                (test_loss, test_acc) = test_model(model, val_dataloader, margin, False)
+                #writer.add_scalar("Accuracy/train", correct/total, epoch)
+                #writer.add_scalar("Accuracy/test", test_correct, epoch)
                 for j in range(len(class_loss)):
                         writer.add_scalar("Loss/train/" + classes[j], class_loss[j]/total, epoch)
                         writer.add_scalar("Loss/test/" + classes[j], test_loss[j], epoch)
-                        writer.add_scalar("Accuracy/test/" + classes[j], test_acc[j], epoch)
-                        writer.add_scalar("Accuray/train/" + classes[j], class_correct[j]/total, epoch)
+                        #writer.add_scalar("Accuracy/test/" + classes[j], test_acc[j]/num_batches, epoch)
+                        #writer.add_scalar("Accuray/train/" + classes[j], class_correct[j]/num_batches, epoch)
+                        writer.add_scalar("Correlation/test/" + classes[j], test_acc[j]/total, epoch)
+                        writer.add_scalar("Correlation/train/" + classes[j], class_correct[j]/total, epoch)
+
 
         print('finished training')
         return model, writer
-                  
 
-def test_model(model, val_dataloader, margin, to_print, reduction):
+
+def test_model(model, val_dataloader, margin, to_print):
 
         model.eval()
 
@@ -144,7 +162,7 @@ def test_model(model, val_dataloader, margin, to_print, reduction):
         class_correct = np.zeros(len(classes), dtype=float)
         class_loss = np.zeros((len(classes)), dtype=float)
 
-        criterion = nn.MSELoss(reduction=reduction)
+        criterion = nn.MSELoss(reduction='mean')
 
         with torch.no_grad():
                 for i, data in enumerate(val_dataloader, 0):
@@ -152,19 +170,34 @@ def test_model(model, val_dataloader, margin, to_print, reduction):
                         outputs = model(inputs)
                         total += len(outputs)
 
-                        for j in range(len(outputs)):
-                                if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
-                                for k in range(len(outputs[j])):
-                                        if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
+                        #R2 SCORE
+                        #class_correct += r2_score(outputs.cpu(), labels.cpu(), multioutput='raw_values')
+
+                        #SPEARMANS
+                        #for j in range(len(classes)):
+                        #       rho, p = stats.spearmanr(outputs[:, j].tolist(), labels[:, j].tolist())
+                        #       class_correct[j] += rho
+
+                        #PEARSONS
+                        for j in range(len(classes)):
+                                rho, p = stats.pearsonr(outputs[:, j].tolist(), labels[:, j].tolist())
+                                class_correct[j] += rho
+
+
+                        #for j in range(len(outputs)):
+                        #        if ((outputs[j] - labels[j])**2).sum()/len(classes) <= margin: correct += 1
+                        #        for k in range(len(outputs[j])):
+                        #                if ((outputs[j, k] - labels[j, k])**2) <= margin: class_correct[k] += 1
                         for j in range(len(classes)):
                                 class_loss[j] += criterion(outputs[:, j], labels[:, j])*len(outputs)
+
 
         if to_print:
                 print("Accuracy on validation set: " + str(correct/total))
                 for i in range(len(classes)):
                         print("Accuracy on " + classes[i] + ": " + str(class_correct[i]/total))
 
-        return class_loss/total, class_correct/total, correct/total
+        return class_loss/total, class_correct            #, correct/total
 
 
 def get_args():
@@ -175,8 +208,6 @@ def get_args():
         parser.add_argument('--lr', type=float)
         parser.add_argument('--momentum', type=float)
         parser.add_argument('--margin', type=float)
-        parser.add_argument('--fine_tune', type=bool)
-        parser.add_argument('--reduction', type=str)
 
         return parser.parse_args()
 
@@ -191,26 +222,22 @@ if __name__ == '__main__':
         lr = args.lr
         momentum = args.momentum
         margin = args.margin
-        fine_tune = args.fine_tune
-        reduction = args.reduction
 
 
-        print("\n\n\n")
+        print("\n")
         print(batch_size)
         print(shuffle)
         print(epochs)
         print(lr)
         print(momentum)
         print(margin)
-        print(fine_tune)
-        print(reduction)
 
 
         #create writer
-        writer = SummaryWriter(comment='_' + str(batch_size) + '_' + str(lr) + '_' + str(fine_tune))
+        writer = SummaryWriter(comment='_' + str(batch_size) + '_' + str(lr))
 
         #create model
-        model = ST_Classifier(len(classes), fine_tune)
+        model = ST_Classifier(len(classes))
         device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
         model.to(device)
 
@@ -218,13 +245,13 @@ if __name__ == '__main__':
         (train_dataloader, val_dataloader) = get_dataloaders(batch_size, shuffle)
 
         #set criterion and optimizer
-        criterion = nn.MSELoss(reduction=reduction)
+        criterion = nn.MSELoss(reduction='mean')
         optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
 
         #train model
-        (model, writer) = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, epochs, margin, reduction, writer)
+        (model, writer) = train_model(model, train_dataloader, val_dataloader, criterion, optimizer, epochs, margin, writer)
 
         writer.flush()
         writer.close()
         #test model
-        test_model(model, val_dataloader, margin, True, reduction)
+        test_model(model, val_dataloader, margin, True)
