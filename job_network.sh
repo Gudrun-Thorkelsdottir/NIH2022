@@ -1,11 +1,12 @@
 #!/bin/bash
 
 
+
 #SBATCH --job-name model_hyp_tune
 #SBATCH --partition=gpu
 #SBATCH --mail-user=gudrun2001@gmail.com
 #SBATCH --mail-type=ALL
-### e.g. request 4 nodes with 1 gpu each, totally 4 gpus (WORLD_SIZE==4)
+### e.g. request 4 nodes with 1 gpu each, totall 4 gpus (WORLD_SIZE==4)
 ### Note: --gres=gpu:x should equal to ntasks-per-node
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
