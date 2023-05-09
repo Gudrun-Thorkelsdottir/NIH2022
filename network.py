@@ -245,7 +245,7 @@ if __name__ == '__main__':
         #create dataloaders
         (train_dataloader, val_dataloader) = get_dataloaders(batch_size, shuffle)
 
-        #set criterion and optimizer
+        #create criterion and optimizer
         criterion = nn.MSELoss(reduction='mean')
         optimizer = optim.SGD(model.parameters(), lr=lr, momentum=momentum)
 
