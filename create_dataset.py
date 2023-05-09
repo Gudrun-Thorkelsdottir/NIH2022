@@ -1,12 +1,18 @@
+import os
 import csv
 from PIL import Image
 import numpy as np
+
+vipshome = 'c:\\vips-dev-8.13.3\\bin'
+os.environ['PATH'] = vipshome + ';' + os.environ['PATH']
+
+
 import pyvips
 import sys
 import torch
 #import pandas as pd
 import random
-import os
+from torchvision import transforms
 
 def vips2numpy(vi):
     format_to_dtype = {
@@ -30,6 +36,7 @@ def extract_data(f1, f2, f3, split_data, shuffle, visium):
 
         dataset = []
         labels = []
+        spot_coords = []
         tile_size = 224
         half_tile = int(tile_size/2)
 
@@ -59,6 +66,7 @@ def extract_data(f1, f2, f3, split_data, shuffle, visium):
                                 max(0, pixel_pos[1] - half_tile):min(size[1], pixel_pos[1] + half_tile)]
                                 if t.shape == (tile_size, tile_size, 3):
                                         dataset.append(torch.from_numpy(t))
+                                spot_coords.append(spot_id)
                         except ValueError:
                                 pass
 
@@ -89,14 +97,23 @@ def extract_data(f1, f2, f3, split_data, shuffle, visium):
 
 if __name__ == '__main__':
 
-        visium = True
+        visium = False
 
         if visium:
+                '''
                 f1 = ["/data/Jiang_Lab/datashare/Beibei/ST/10x_SpatialDatasets_Breast.Cancer/Version1.0.0_Breast.Cancer_rep1/V1_Breast_Cancer_Block_A_Section_1_image.tif", "/data/Jiang_Lab/datashare/Beibei/ST/10x_SpatialDatasets_Breast.Cancer/Version1.0.0_Breast.Cancer_rep2/V1_Breast_Cancer_Block_A_Section_2_image.tif"] #, "/data/Jiang_Lab/datashare/ST/10x_SpatialDatasets_Breast.Cancer/Version1.2.0_Breast.Cancer.Invasive.Lobular.Carcinoma/Targeted_Visium_Human_BreastCancer_Immunology_image.tif", "/data/Jiang_Lab/datashare/ST/10x_SpatialDatasets_Breast.Cancer/Version1.3.0_Breast.Cancer/Visium_FFPE_Human_Breast_Cancer_image.tif"]
 
                 f2 = ["/data/Jiang_Lab/datashare/Beibei/ST/10x_SpatialDatasets_Breast.Cancer/Version1.0.0_Breast.Cancer_rep1/spatial/tissue_positions_list.csv", "/data/Jiang_Lab/datashare/Beibei/ST/10x_SpatialDatasets_Breast.Cancer/Version1.0.0_Breast.Cancer_rep2/spatial/tissue_positions_list.csv"] #, "/data/Jiang_Lab/datashare/ST/10x_SpatialDatasets_Breast.Cancer/Version1.2.0_Breast.Cancer.Invasive.Lobular.Carcinoma/tissue_positions_list.csv", "/data/Jiang_Lab/datashare/ST/10x_SpatialDatasets_Breast.Cancer/Version1.3.0_Breast.Cancer/tissue_positions_list.csv"]
 
                 f3 = ["/data/Jiang_Lab/datashare/Beibei/ST/10x_SpatialDatasets_Breast.Cancer/Version1.0.0_Breast.Cancer_rep1/propMat_SpaCE.csv", "/data/Jiang_Lab/datashare/Beibei/ST/10x_SpatialDatasets_Breast.Cancer/Version1.0.0_Breast.Cancer_rep2/propMat_SpaCE.csv"] #, "/data/Jiang_Lab/datashare/ST/10x_SpatialDatasets_Breast.Cancer/Version1.2.0_Breast.Cancer.Invasive.Lobular.Carcinoma/propMat_SpaCE.csv", "/data/Jiang_Lab/datashare/ST/10x_SpatialDatasets_Breast.Cancer/Version1.3.0_Breast.Cancer/propMat_SpaCE.csv"]
+		'''
+
+                f1 = ["/home/thorkelsdottigl/NIH2022/data_samples/2023/398A.tif"]
+                f2 = ["/home/thorkelsdottigl/NIH2022/data_samples/2023/GSM6433624_398A_tissue_positions_list.csv"]
+                f3 = ["/home/thorkelsdottigl/NIH2022/data_samples/2023/propMat_SpaCE.csv"]
+
+
+
 
                 #if >=5 images, hold one for val data
                 if len(f1) > 1:
@@ -110,20 +127,22 @@ if __name__ == '__main__':
                 f1 = []
                 f2 = []
                 f3 = []
-                folders = os.listdir('/data/Jiang_Lab/datashare/ST/He_2020_Breast.Cancer')
+                #folders = os.listdir('/data/Jiang_Lab/datashare/ST/He_2020_Breast.Cancer')
+                folders = os.listdir('/data/Jiang_Lab/datashare/Beibei/ST/Gudrun/He_2020_Breast.Cancer/')
 
-                for folder in folders:
-                        f1.append('/data/Jiang_Lab/datashare/ST/He_2020_Breast.Cancer/' + folder + '/HE.jpg')
-                        f2.append('/data/Jiang_Lab/datashare/ST/He_2020_Breast.Cancer/' + folder + '/spot_coordinates.csv')
-                        f3.append('/data/Jiang_Lab/datashare/ST/He_2020_Breast.Cancer/' + folder + '/propMat_SpaCE.csv')
+                #for folder in folders:
+                for i in range(0, 10):
+                        f1.append('/data/Jiang_Lab/datashare/Beibei/ST/Gudrun/He_2020_Breast.Cancer/' + folders[i] + '/HE.jpg')
+                        f2.append('/data/Jiang_Lab/datashare/Beibei/ST/Gudrun/He_2020_Breast.Cancer/' + folders[i] + '/spot_coordinates.csv')
+                        f3.append('/data/Jiang_Lab/datashare/Beibei/ST/Gudrun/He_2020_Breast.Cancer/' + folders[i] + '/propMat_SpaCE.csv')
 
                 split = int(len(f1) * 0.8)
                 [dataset, labels] = extract_data(f1[:split], f2[:split], f3[:split], False, False, visium)
                 [val_dataset, val_labels] = extract_data(f1[split:], f2[split:], f3[split:], False, False, visium)
+                #[dataset, labels, val_dataset, val_labels] = extract_data(f1, f2, f3, True, False, visium)
 
         torch.save(dataset, 'dataset.pt')
         torch.save(labels, 'labels.pt')
         torch.save(val_dataset, 'validation_dataset.pt')
         torch.save(val_labels, 'validation_labels.pt')
 
-        #print(labels.shape)

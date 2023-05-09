@@ -14,6 +14,7 @@ import argparse
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import r2_score
 from scipy import stats
+from torchvision.models import ResNet18_Weights
 
 
 
@@ -44,7 +45,7 @@ class Image_Dataset(torch.utils.data.Dataset):
 class ST_Classifier(nn.Module):
         def __init__(self, num_classes):
                 super(ST_Classifier, self).__init__()
-                self.encoder = models.resnet18(pretrained=True)
+                self.encoder = models.resnet18(weights=ResNet18_Weights.DEFAULT)     #pretrained=True)
                 self.encoder.fc = nn.Identity()
                 self.relu = nn.ReLU()
                 self.fc1 = nn.Linear(512, 128)
