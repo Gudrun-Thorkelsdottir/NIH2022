@@ -9,6 +9,7 @@ margin=0.001
 reduction="mean"
 fine_tune=False
 
+#not checking fine_tune anymore!
 #for fine_tune in 0 1; do
 #       for batch_size in 16 32 64; do
 #               for lr in 0.1 0.01 0.001; do
