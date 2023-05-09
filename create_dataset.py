@@ -10,7 +10,6 @@ os.environ['PATH'] = vipshome + ';' + os.environ['PATH']
 import pyvips
 import sys
 import torch
-#import pandas as pd
 import random
 from torchvision import transforms
 
