@@ -57,11 +57,6 @@ for i in range(0, 10):
 
 	image, labels = data[0], data[1]
 	image = (image - image.min()) / (image.max() - image.min())
-	#if i == 0:
-	#	print(image[0].reshape((224, 224, 3)))
-	#	print(labels[0])
-	#print(image[0].reshape((224, 224, 3)))
-	#print(labels[0])
 
 	img = transforms.ToPILImage()(image[0])
 
