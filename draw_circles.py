@@ -74,7 +74,7 @@ spot_coords[8][1] = 7173
 spot_coords[9][0] = 4151
 spot_coords[9][1] = 7174
 
-spot_coords = spot_coords[:, (1, 0)]     #np.transpose(spot_coords)
+spot_coords = spot_coords[:, (1, 0)]
 
 
 #spot_ids = ["19x5", "20x5", "18x6", "19x6", "20x6", "17x6", "19x7", "18x7", "17x7", "20x7"]
